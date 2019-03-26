@@ -11,3 +11,4 @@ Something fun to hack away with, and a good excuse to use C!
   parsing stdin in the loop)
 - [ ] Set up a path
 - [x] Run everything blocking unless you give it some reason not to
+- [ ] Git support?
