@@ -28,7 +28,9 @@ char PROMPT[] = "$ ";
 
 void prompt(char * COLOR) {
   /* Prints the prompt */
-    printf("%s%s%s", COLOR, PROMPT, KNRM);
+    char buff[BUFSIZ];
+    getcwd(buff, BUFSIZ);
+    printf("%s%s%s\n%s%s%s", KBLU, buff, KNRM, COLOR, PROMPT, KNRM);
     fflush(stdout);
 }
 
