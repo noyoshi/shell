@@ -2,14 +2,12 @@ CFLAGS=-Wall -o
 
 all: program
 
-program: shell.c debug.h
-	gcc $(CFLAGS) shell shell.c
+program: shell.c debug.h 
+	gcc $(CFLAGS) shell shell.c 
 
 dev:
-	mv config.h.in config.h
-	gcc $(CFLAGS) shell shell.c
-	mv config.h config.h.in
+	gcc -D DEBUG $(CFLAGS) shell shell.c
 
 clean:
 	@echo Removing binaries...
-	rm myshell
+	rm shell 
