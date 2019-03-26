@@ -20,28 +20,33 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include "debug.h"
+#include "config.h"
+
 void prompt() {
   /* Prints the prompt */
   printf("myshell> ");
   fflush(stdout);
 }
 
-int getCommand(char * string) {
+int get_command(char * string) {
   /* Returns the code for the command or prints error if none is found */
   int i;
-  int n = 6;
-  char * commands[6] = { "start", "wait", "run", "kill", "stop", "continue" };
+  int n = 5;
+  char * commands[5] = { "start", "wait", "kill", "stop", "continue" };
   for (i = 0; i < n; i ++) {
     // Is it the command?
     if (strcmp(commands[i], string) == 0) return i;
   }
+
+  return 5;
 
   // Bad command
   fprintf(stderr, "[ERROR] Unknown command: %s\n", string);
   return -1;
 }
 
-void handleSignals(int command, int pid) {
+void handle_signals(int command, int pid) {
   /* Send the signal specified by command to process pid */
   int sig = -1;
   char * descriptor;
@@ -73,20 +78,26 @@ void handleSignals(int command, int pid) {
   }
 }
 
-void handleProcessExit(int pid, int status) {
+void handle_process_exit(int pid, int status) {
   /* Handles a successful wait call */
   if (WIFEXITED(status)) {
+#ifdef DEBUG
     printf("[INFO] Process %d exited normally with status %d\n", pid, WEXITSTATUS(status));
+#endif
   } else if (WIFSIGNALED(status)) {
+#ifdef DEBUG
     printf("[INFO] Process %d exited with signal %d\n", pid, WTERMSIG(status));
+#endif
   } else if (WIFSTOPPED(status)) {
+#ifdef DEBUG
     printf("[INFO] Process %d stopped with signal %d\n", pid, WSTOPSIG(status));
+#endif
   } else {
     fprintf(stderr, "[ERROR] Error in processing child process %d\n", pid);
   }
 }
 
-void swapFds(char * fname, int fd) {
+void swap_fds(char * fname, int fd) {
   /* Safely swaps the filename into the file descriptor fd */
   // Open the fd differntly if the target fd is stdin or stdout
   int newFd = (fd == 0) ? open(fname, O_RDONLY) : open(fname, O_WRONLY | O_CREAT, 0666);
@@ -102,19 +113,21 @@ void swapFds(char * fname, int fd) {
   }
 }
 
-void handleFileRedirection(char * inputFile, char * outputFile) {
+void handle_file_redirection(char * inputFile, char * outputFile) {
   // See if we need to redirect stdin
-  if (inputFile != NULL) swapFds(inputFile, 0);
-  if (outputFile != NULL) swapFds(outputFile, 1);
+  if (inputFile != NULL) swap_fds(inputFile, 0);
+  if (outputFile != NULL) swap_fds(outputFile, 1);
 }
 
-void startProcess(char * args[], char * inputFile, char * outputFile) {
+void start_process(char * args[], char * inputFile, char * outputFile) {
   /* Starts a child process */
   // Fork a child process
   pid_t pid = fork();
 
   // In parent, print off the process id of child
+#ifdef DEBUG
   if (pid > 0) printf("[INFO] Process %d started\n", pid);
+#endif
 
   // Handle fork
   if (pid < 0) {
@@ -122,7 +135,7 @@ void startProcess(char * args[], char * inputFile, char * outputFile) {
     fprintf(stderr, "[ERROR] Error forking child process: %s\n", strerror(errno));
   } else if (pid == 0) {
     // In child process...
-    handleFileRedirection(inputFile, outputFile);
+    handle_file_redirection(inputFile, outputFile);
 
     if (execvp(args[0], args) < 0) {
       // Error in execvp
@@ -133,7 +146,7 @@ void startProcess(char * args[], char * inputFile, char * outputFile) {
   }
 }
 
-void runProcess(char * args[], char * inputFile, char * outputFile) {
+void run_process(char * args[], char * inputFile, char * outputFile) {
   /* Runs and waits for the process to complete */
   int status;
 
@@ -141,7 +154,9 @@ void runProcess(char * args[], char * inputFile, char * outputFile) {
   pid_t pid = fork();
 
   // In parent, print off the process id of child
+#ifdef DEBUG
   if (pid > 0) printf("[INFO] Process %d started\n", pid);
+#endif
 
   // Handle fork
   if (pid < 0) {
@@ -149,7 +164,7 @@ void runProcess(char * args[], char * inputFile, char * outputFile) {
     fprintf(stderr, "[ERROR] Error forking child process: %s\n", strerror(errno));
   } else if (pid == 0) {
     // In child process...
-    handleFileRedirection(inputFile, outputFile);
+    handle_file_redirection(inputFile, outputFile);
 
     if (execvp(args[0], args) < 0) {
       // Error in execvp
@@ -162,11 +177,11 @@ void runProcess(char * args[], char * inputFile, char * outputFile) {
     while(waitpid(pid, &status, 0) != pid) ;
 
     // Handle different exit / signal cases
-    handleProcessExit(pid, status);
+    handle_process_exit(pid, status);
   }
 }
 
-void waitForProcess() {
+void wait_for_process() {
   /* Waits for a child process to finish */
   int status;
   pid_t pid = wait(&status);
@@ -179,39 +194,39 @@ void waitForProcess() {
   }
 
   // Handle different exit / signal cases
-  handleProcessExit(pid, status);
+  handle_process_exit(pid, status);
 }
 
-void commandDispatcher(char * words[100], int command, int word_n, char * inputFile, char * outputFile) {
+void command_dispatcher(char * words[100], int command, int word_n, char * inputFile, char * outputFile) {
   /* Calls different functions based on the command given by user */
   // If the command is not wait (the only non - argument requiring call)
   // And if there are too few args, exit early
-  if (command != 1 && word_n <= 1) {
+  if (command != 5 && word_n <= 1) {
     fprintf(stderr, "[ERROR] Please provide arguments\n");
     return;
   }
 
   switch (command) {
     case 0: // Start
-      startProcess(words + sizeof(char), inputFile, outputFile); // Ignore the first arg: "start"
+      start_process(words + sizeof(char), inputFile, outputFile); // Ignore the first arg: "start"
       break;
     case 1: // Wait
-      waitForProcess();
+      wait_for_process();
       break;
-    case 2: // Run
-      runProcess(words + sizeof(char), inputFile, outputFile); // Ignore the first arg: "run"
-      break;
-    case 3: // Kill
-    case 4: // Stop
-    case 5: { // Continue
+    case 2: // Kill
+    case 3: // Stop
+    case 4: { // Continue
       int pid = atoi(words[1]);
       if (pid == 0) {
         fprintf(stderr, "[ERROR] Invalid numeric PID: %s\n", words[1]);
       } else {
-        handleSignals(command, pid);
+        handle_signals(command, pid);
       }
       break;
     }
+    case 5: // Run
+      run_process(words, inputFile, outputFile); // Ignore the first arg: "run"
+      break;
   }
 }
 
@@ -251,11 +266,11 @@ int main(int argc, char * argv[]) {
           outputFile = tempWord + sizeof(char);
         else
           words[word_n++] = tempWord;
-
       }
       // Get next word
       tempWord = strtok(0, " \t\n");
     }
+    // Pads null to the end of the array
     words[word_n] = 0;
 
     // If for some reason we have no commands?
@@ -266,10 +281,10 @@ int main(int argc, char * argv[]) {
     }
 
     // Parse the command
-    command = getCommand(words[0]);
+    command = get_command(words[0]);
 
     // Handle specific commands
-    commandDispatcher(words, command, word_n, inputFile, outputFile);
+    command_dispatcher(words, command, word_n, inputFile, outputFile);
 
     // Redraw the prompt
     prompt();
